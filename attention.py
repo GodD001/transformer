@@ -43,9 +43,9 @@ class MultiheadAttention(nn.Module):
         out = self.dropout(out)
         return self.norm(out+q), attn
 
-class FeedForward(nn.module):
+class FeedForward(nn.Module):
     def __init__(self, d_model, d_ff, dropout=0.1):
-        super.__init__()
+        super().__init__()
         self.fc1 = nn.Linear(d_model, d_ff)
         self.fc2 = nn.Linear(d_ff, d_model)
         self.dropout = nn.Dropout(dropout)
@@ -53,18 +53,18 @@ class FeedForward(nn.module):
     def forward(self, x):
         out = self.fc2(self.dropout(torch.relu(self.fc1(x))))
         return self.norm(out+x)
-class EncoderLayer(nn.module):
+class EncoderLayer(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout =0.1):
-        super.__init__()
+        super().__init__()
         self.self_attn = MultiheadAttention(d_model, n_heads,dropout)
-        self.fnn = FeedForward(d_model, d_ff,dropout)
+        self.ffn = FeedForward(d_model, d_ff,dropout)
 
     def forward(self, src, src_mask = None):
         out,_ = self.self_attn(src,src,src,src_mask)
         out = self.ffn(out)
         return out
     
-class DecoderLayer(nn.module):
+class DecoderLayer(nn.Module):
     def __init__(self, d_models, n_heads, d_ff, dropout =0.1):
         super().__init__()
         self.self_attn =MultiheadAttention(d_models, n_heads, dropout)
