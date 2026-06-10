@@ -75,3 +75,64 @@ class DecoderLayer(nn.Module):
         out,_ = self. cross_attn(out, memory, memory, memory_mask)
         out = self.ffn(out)
         return out
+class PostionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len = 5000):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype= torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float()*(-math.log(10000.0)/d_model))
+        pe[:,0::2] = torch.sin(position * div_term)
+        pe[:,1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer("pe",pe)
+    def forward(self, x):
+        seq_len = x.size(1)
+        return x +self.pe[:,: seq_len,:]
+
+class Encoder(nn.Module):
+    def __init__(self, vocab_size, d_model, n_heads, num_layers, d_ff, dropout= 0.1, max_len = 5000 ):
+        super().__init__()
+        self.embedding =nn.Embedding(vocab_size, d_model )
+        self.pos_encoding = PostionalEncoding(d_model, max_len)
+        self.layers = nn.ModuleList([EncoderLayer(d_model, n_heads, d_ff, dropout) for _ in range(num_layers)])
+    def forward(self, src,src_mask=None):
+        out = self.embedding(src)* math.sqrt(self.embedding.embedding_dim)
+        out = self.pos_encoding(out)
+        for layer in self.layers:
+            out = layer(out, src_mask)
+        return out
+class Decoder(nn.Module):
+    def __init__(self, vocab_size, d_model, n_heads, num_layers, d_ff, dropout=0.1, max_len =5000):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.pos_encoding = PostionalEncoding(d_model, max_len)
+        self.layers = nn.ModuleList([DecoderLayer(d_model,n_heads, d_ff, dropout)for _ in range(num_layers)])
+        self.fc_out = nn.Linear(d_model,vocab_size)
+    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None):
+        out =self.embedding(tgt)* math.sqrt(self.embedding.embedding_dim)
+        out = self.pos_encoding(out)
+        for layer in self.layers:
+            out = layer(out, memory, tgt_mask, memory_mask)
+        return self.fc_out(out)
+class Transformer(nn.Module):
+    def __init__(self,src_vocab, tgt_vocab, d_model = 512, n_heads= 8, num_encoder_layer = 6, num_decoder_layer= 6, d_ff= 2048, dropout=0.1, max_len=5000 ):
+        super().__init__()
+        self.encoder =Encoder(src_vocab, d_model, n_heads, num_encoder_layer, d_ff, dropout, max_len)
+        self.decoder =Decoder(tgt_vocab, d_model, n_heads, num_decoder_layer, d_ff, dropout, max_len)
+    def forward(self, src, tgt, src_mask = None,tgt_mask=None, memory_mask= None ):
+        memory = self.encoder(src, src_mask)
+        out = self.decoder(tgt, memory, tgt_mask, memory_mask)
+        return out
+def generate_mask(size):
+    mask=torch.triu(torch.ones(size,size),diagonal=1).bool()
+    return mask ==0
+src_vocab = 10000
+tgt_vocab = 10000
+model = Transformer(src_vocab,tgt_vocab)
+src =torch.randint(0, src_vocab, (32, 10))
+tgt = torch.randint(0, tgt_vocab, (32, 10))
+tgt_mask = generate_mask(tgt.size(1)).to(tgt.device)
+out = model(src, tgt, tgt_mask=tgt_mask)
+print(out.shape)
+
+
